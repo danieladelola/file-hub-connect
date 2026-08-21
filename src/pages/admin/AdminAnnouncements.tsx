@@ -1,0 +1,406 @@
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { broadcast } from "@/lib/mail";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import {
+  Megaphone, Loader2, Send, RefreshCw,
+  Bold, Italic, Underline, List, ListOrdered, Link2, Heading2, Heading3,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, Image as ImageIcon,
+  Quote, Minus, Undo2, Redo2, Eraser, Strikethrough, Palette, Highlighter,
+} from "lucide-react";
+
+export default function AdminAnnouncements() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+          <Megaphone className="h-6 w-6 text-primary" /> Announcements
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          Send branded email announcements to all users. Uses the centralized SMTP configuration.
+        </p>
+      </div>
+
+      <Tabs defaultValue="compose" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="compose">Compose</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="logs">Email Logs</TabsTrigger>
+        </TabsList>
+        <TabsContent value="compose"><Compose /></TabsContent>
+        <TabsContent value="history"><History /></TabsContent>
+        <TabsContent value="logs"><Logs /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+/* ---------------- Compose ---------------- */
+function Compose() {
+  const { user } = useAuth();
+  const [subject, setSubject] = useState("");
+  const [testTo, setTestTo] = useState("");
+  const [busy, setBusy] = useState<"idle" | "test" | "all">("idle");
+  const editorRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [, forceTick] = useState(0);
+
+  function refreshSelected() { forceTick((t) => t + 1); }
+
+  function applyImgAlign(align: "left" | "center" | "right") {
+    if (!selectedImg) return;
+    selectedImg.style.display = "block";
+    selectedImg.style.marginTop = "8px";
+    selectedImg.style.marginBottom = "8px";
+    if (align === "left")   { selectedImg.style.marginLeft = "0";    selectedImg.style.marginRight = "auto"; selectedImg.style.float = "none"; }
+    if (align === "center") { selectedImg.style.marginLeft = "auto"; selectedImg.style.marginRight = "auto"; selectedImg.style.float = "none"; }
+    if (align === "right")  { selectedImg.style.marginLeft = "auto"; selectedImg.style.marginRight = "0";    selectedImg.style.float = "none"; }
+    refreshSelected();
+  }
+
+  function applyImgWidth(pct: number) {
+    if (!selectedImg) return;
+    selectedImg.style.width = `${pct}%`;
+    selectedImg.style.height = "auto";
+    selectedImg.style.maxWidth = "100%";
+    refreshSelected();
+  }
+
+  function removeSelectedImg() {
+    if (!selectedImg) return;
+    selectedImg.remove();
+    setSelectedImg(null);
+  }
+
+  function onEditorClick(e: React.MouseEvent) {
+    const t = e.target as HTMLElement;
+    // clear outline on previously selected
+    if (selectedImg && selectedImg !== t) {
+      selectedImg.style.outline = "";
+      selectedImg.style.outlineOffset = "";
+    }
+    if (t.tagName === "IMG") {
+      setSelectedImg(t as HTMLImageElement);
+    } else {
+      setSelectedImg(null);
+    }
+  }
+
+  function exec(cmd: string, value?: string) {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false, value);
+  }
+
+  function getHtml(): string {
+    return editorRef.current?.innerHTML.trim() ?? "";
+  }
+
+  function insertImageFile(file: File) {
+    if (!file.type.startsWith("image/")) return toast.error("Pick an image file");
+    if (file.size > 2 * 1024 * 1024) return toast.error("Image too large (max 2MB)");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result ?? "");
+      editorRef.current?.focus();
+      const img = `<img src="${dataUrl}" alt="" style="width:100%;max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block;" />`;
+      document.execCommand("insertHTML", false, img);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function insertHr() {
+    exec("insertHTML", '<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;" />');
+  }
+
+  function insertQuote() {
+    exec("formatBlock", "<blockquote>");
+  }
+
+  async function persistAnnouncement(status: "draft" | "sent" | "partial"): Promise<string | null> {
+    const html = getHtml();
+    if (!subject || !html) { toast.error("Subject and body are required"); return null; }
+    const { data, error } = await supabase
+      .from("announcements")
+      .insert({ subject, body_html: html, sent_by: user?.id ?? null, status })
+      .select("id").single();
+    if (error) { toast.error(error.message); return null; }
+    return data.id as string;
+  }
+
+  async function sendTest() {
+    const raw = testTo.trim();
+    if (!raw) return toast.error("Enter at least one test recipient");
+    const emails = raw.split(/[,;]/).map((e) => e.trim()).filter((e) => e.includes("@"));
+    if (!emails.length) return toast.error("Enter valid email addresses");
+    const html = getHtml();
+    if (!subject || !html) return toast.error("Subject and body are required");
+    setBusy("test");
+    const r = await broadcast({ subject, html, test_to: emails });
+    setBusy("idle");
+    if (!r.ok) toast.error(r.error ?? "Failed"); else toast.success(`Test sent to ${emails.length} recipient(s)`);
+  }
+
+  async function sendAll() {
+    const html = getHtml();
+    if (!subject || !html) return toast.error("Subject and body are required");
+    if (!confirm("Send this announcement to ALL users?")) return;
+    setBusy("all");
+    const id = await persistAnnouncement("draft");
+    if (!id) { setBusy("idle"); return; }
+    const r = await broadcast({ subject, html, announcement_id: id });
+    setBusy("idle");
+    if (!r.ok) return toast.error(r.error ?? "Failed");
+    toast.success(`Sent to ${r.sent}/${r.total} users (${r.failed ?? 0} failed)`);
+    setSubject(""); if (editorRef.current) editorRef.current.innerHTML = "";
+  }
+
+  return (
+    <Card className="bg-gradient-card border-border/60">
+      <CardHeader>
+        <CardTitle>New Announcement</CardTitle>
+        <CardDescription>Write your message. It will be wrapped in the branded email template automatically.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Subject</Label>
+          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Important update from Haratrading" />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Body</Label>
+          <div className="flex flex-wrap items-center gap-1 rounded-md border border-border/60 bg-muted/30 p-1.5">
+            <ToolBtn title="Bold" onClick={() => exec("bold")}        icon={<Bold className="h-4 w-4" />} />
+            <ToolBtn title="Italic" onClick={() => exec("italic")}      icon={<Italic className="h-4 w-4" />} />
+            <ToolBtn title="Underline" onClick={() => exec("underline")}   icon={<Underline className="h-4 w-4" />} />
+            <ToolBtn title="Strikethrough" onClick={() => exec("strikeThrough")} icon={<Strikethrough className="h-4 w-4" />} />
+            <Sep />
+            <select
+              onChange={(e) => { exec("formatBlock", e.target.value); e.currentTarget.selectedIndex = 0; }}
+              className="h-8 rounded border border-border/60 bg-background text-xs px-2"
+              defaultValue=""
+              title="Paragraph style"
+            >
+              <option value="" disabled>Style</option>
+              <option value="<h1>">Heading 1</option>
+              <option value="<h2>">Heading 2</option>
+              <option value="<h3>">Heading 3</option>
+              <option value="<p>">Paragraph</option>
+            </select>
+            <select
+              onChange={(e) => { exec("fontSize", e.target.value); e.currentTarget.selectedIndex = 0; }}
+              className="h-8 rounded border border-border/60 bg-background text-xs px-2"
+              defaultValue=""
+              title="Font size"
+            >
+              <option value="" disabled>Size</option>
+              <option value="2">Small</option>
+              <option value="3">Normal</option>
+              <option value="4">Medium</option>
+              <option value="5">Large</option>
+              <option value="6">X-Large</option>
+              <option value="7">XX-Large</option>
+            </select>
+            <Sep />
+            <ToolBtn title="H2" onClick={() => exec("formatBlock", "<h2>")} icon={<Heading2 className="h-4 w-4" />} />
+            <ToolBtn title="H3" onClick={() => exec("formatBlock", "<h3>")} icon={<Heading3 className="h-4 w-4" />} />
+            <Sep />
+            <ToolBtn title="Bulleted list" onClick={() => exec("insertUnorderedList")} icon={<List className="h-4 w-4" />} />
+            <ToolBtn title="Numbered list" onClick={() => exec("insertOrderedList")}   icon={<ListOrdered className="h-4 w-4" />} />
+            <ToolBtn title="Quote" onClick={insertQuote} icon={<Quote className="h-4 w-4" />} />
+            <Sep />
+            <ToolBtn title="Align left"    onClick={() => exec("justifyLeft")}    icon={<AlignLeft className="h-4 w-4" />} />
+            <ToolBtn title="Align center"  onClick={() => exec("justifyCenter")}  icon={<AlignCenter className="h-4 w-4" />} />
+            <ToolBtn title="Align right"   onClick={() => exec("justifyRight")}   icon={<AlignRight className="h-4 w-4" />} />
+            <ToolBtn title="Justify"       onClick={() => exec("justifyFull")}    icon={<AlignJustify className="h-4 w-4" />} />
+            <Sep />
+            <label title="Text color" className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-accent cursor-pointer relative">
+              <Palette className="h-4 w-4" />
+              <input type="color" onChange={(e) => exec("foreColor", e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer" />
+            </label>
+            <label title="Highlight" className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-accent cursor-pointer relative">
+              <Highlighter className="h-4 w-4" />
+              <input type="color" defaultValue="#fde68a"
+                onChange={(e) => exec("hiliteColor", e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer" />
+            </label>
+            <Sep />
+            <ToolBtn title="Insert link" onClick={() => { const url = prompt("Link URL"); if (url) exec("createLink", url); }} icon={<Link2 className="h-4 w-4" />} />
+            <ToolBtn title="Insert image" onClick={() => fileRef.current?.click()} icon={<ImageIcon className="h-4 w-4" />} />
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) insertImageFile(f); e.currentTarget.value = ""; }} />
+            <ToolBtn title="Divider" onClick={insertHr} icon={<Minus className="h-4 w-4" />} />
+            <Sep />
+            <ToolBtn title="Undo" onClick={() => exec("undo")} icon={<Undo2 className="h-4 w-4" />} />
+            <ToolBtn title="Redo" onClick={() => exec("redo")} icon={<Redo2 className="h-4 w-4" />} />
+            <ToolBtn title="Clear formatting" onClick={() => exec("removeFormat")} icon={<Eraser className="h-4 w-4" />} />
+          </div>
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onClick={onEditorClick}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const it of items) {
+                if (it.type.startsWith("image/")) {
+                  const f = it.getAsFile();
+                  if (f) { e.preventDefault(); insertImageFile(f); return; }
+                }
+              }
+            }}
+            className="ann-editor min-h-[320px] rounded-md border border-border/60 bg-background p-4 text-sm focus:outline-none prose prose-sm dark:prose-invert max-w-none [&_img]:rounded-md [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground"
+          />
+          {selectedImg && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 p-2 text-xs">
+              <span className="font-medium text-foreground">Image selected:</span>
+              <span className="text-muted-foreground">Align</span>
+              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => applyImgAlign("left")}><AlignLeft className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => applyImgAlign("center")}><AlignCenter className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => applyImgAlign("right")}><AlignRight className="h-3.5 w-3.5" /></Button>
+              <span className="text-muted-foreground ml-2">Size</span>
+              {[25, 50, 75, 100].map((p) => (
+                <Button key={p} size="sm" variant="outline" className="h-7 px-2" onClick={() => applyImgWidth(p)}>{p}%</Button>
+              ))}
+              <Button size="sm" variant="destructive" className="h-7 px-2 ml-auto" onClick={removeSelectedImg}>Remove</Button>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">Tip: click any image to align or resize it. Paste or drag images to insert (max 2MB).</p>
+          <style>{`.ann-editor img { cursor: pointer; transition: outline-color .15s; outline: 2px solid transparent; outline-offset: 2px; } .ann-editor img:hover { outline-color: hsl(var(--primary) / .35); }`}</style>
+          {selectedImg && (() => {
+            // outline the currently selected image
+            selectedImg.style.outline = "2px solid hsl(var(--primary))";
+            selectedImg.style.outlineOffset = "2px";
+            return null;
+          })()}
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
+          <div className="space-y-2">
+            <Label>Send test to</Label>
+            <div className="flex gap-2">
+              <Input type="text" placeholder="you@example.com, friend@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+              <Button variant="outline" onClick={sendTest} disabled={busy !== "idle"}>
+                {busy === "test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Separate multiple emails with commas or semicolons.</p>
+          </div>
+          <div className="space-y-2">
+            <Label>&nbsp;</Label>
+            <Button onClick={sendAll} disabled={busy !== "idle"} className="w-full bg-gradient-primary">
+              {busy === "all" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Megaphone className="h-4 w-4 mr-2" />}
+              Send to all users
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ToolBtn({ onClick, icon, title }: { onClick: () => void; icon: React.ReactNode; title?: string }) {
+  return (
+    <button type="button" title={title} onMouseDown={(e) => e.preventDefault()} onClick={onClick}
+      className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-accent text-foreground/80 transition-colors">
+      {icon}
+    </button>
+  );
+}
+
+function Sep() {
+  return <div className="w-px h-6 bg-border mx-1" />;
+}
+
+/* ---------------- History ---------------- */
+function History() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(100);
+    setRows(data ?? []); setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+  return (
+    <Card className="bg-gradient-card border-border/60">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div><CardTitle>Past announcements</CardTitle><CardDescription>Latest 100 announcements</CardDescription></div>
+        <Button variant="outline" size="sm" onClick={load}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? <Center><Loader2 className="h-5 w-5 animate-spin" /></Center> : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Subject</TableHead><TableHead>Status</TableHead><TableHead>Sent</TableHead><TableHead>Failed</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">No announcements yet</TableCell></TableRow>}
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="text-xs whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</TableCell>
+                  <TableCell className="text-sm">{r.subject}</TableCell>
+                  <TableCell><Badge variant={r.status === "sent" ? "default" : r.status === "partial" ? "secondary" : "outline"}>{r.status}</Badge></TableCell>
+                  <TableCell className="text-sm">{r.recipients_count ?? 0}</TableCell>
+                  <TableCell className="text-sm text-destructive">{r.failed_count ?? 0}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ---------------- Logs ---------------- */
+function Logs() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from("email_logs").select("*")
+      .eq("template_key", "announcement").order("created_at", { ascending: false }).limit(200);
+    setRows(data ?? []); setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+  return (
+    <Card className="bg-gradient-card border-border/60">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div><CardTitle>Announcement email logs</CardTitle><CardDescription>Latest 200 announcement-related sends</CardDescription></div>
+        <Button variant="outline" size="sm" onClick={load}><RefreshCw className="h-4 w-4 mr-2" />Refresh</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? <Center><Loader2 className="h-5 w-5 animate-spin" /></Center> : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Recipient</TableHead><TableHead>Subject</TableHead><TableHead>Status</TableHead><TableHead>Error</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">No logs</TableCell></TableRow>}
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="text-xs whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</TableCell>
+                  <TableCell className="text-xs">{r.recipient}</TableCell>
+                  <TableCell className="text-xs max-w-[260px] truncate">{r.subject}</TableCell>
+                  <TableCell><Badge variant={r.status === "sent" ? "default" : "destructive"}>{r.status}</Badge></TableCell>
+                  <TableCell className="text-xs text-destructive max-w-[260px] truncate">{r.error ?? ""}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Center({ children }: { children: React.ReactNode }) {
+  return <div className="py-10 text-center">{children}</div>;
+}
