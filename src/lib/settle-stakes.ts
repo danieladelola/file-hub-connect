@@ -60,12 +60,44 @@ export async function settleExpiredStakes(
 
   for (const s of (stakes ?? []).filter((s: any) => realUsers.has(s.user_id))) {
     try {
-
       const amount = Number(s.amount);
       const reward = fullTermReward(s);
+      const asset = s.is_usd ? "USD" : s.coin;
 
-      // 1. Close the stake first (guarded), so a later failure can never
-      //    credit a balance twice on a retry.
+      let walletId: string | null = null;
+
+      if (!s.is_usd) {
+        // A DB trigger releases the locked principal (staked -> available)
+        // when the stake flips to `completed`, so the principal must be
+        // reserved in `staked` first — legacy rows never locked it.
+        const { data: wallet } = await admin
+          .from("wallet_balances")
+          .select("id,available,staked")
+          .eq("user_id", s.user_id)
+          .eq("coin", s.coin)
+          .maybeSingle();
+
+        if (wallet) {
+          walletId = wallet.id;
+          if (Number(wallet.staked) < amount) {
+            const { error: resErr } = await admin
+              .from("wallet_balances")
+              .update({ staked: amount, updated_at: nowIso })
+              .eq("id", wallet.id);
+            if (resErr) throw resErr;
+          }
+        } else {
+          const { data: created, error: insErr } = await admin
+            .from("wallet_balances")
+            .insert({ user_id: s.user_id, coin: s.coin, available: 0, staked: amount })
+            .select("id")
+            .single();
+          if (insErr) throw insErr;
+          walletId = created.id;
+        }
+      }
+
+      // Close the stake (guarded) — the trigger returns the principal.
       const { data: closed, error: upErr } = await admin
         .from("user_stakes")
         .update({ status: "completed", reward_earned: reward })
@@ -78,7 +110,7 @@ export async function settleExpiredStakes(
         continue;
       }
 
-      // 2. Return principal + reward.
+      // Credit the profit on top of the returned principal.
       if (s.is_usd) {
         const { data: fiat } = await admin
           .from("fiat_balances")
@@ -92,47 +124,29 @@ export async function settleExpiredStakes(
         } else {
           await admin.from("fiat_balances").insert({ user_id: s.user_id, currency: "USD", available: next });
         }
-      } else {
-        const { data: wallet } = await admin
+      } else if (walletId && reward > 0) {
+        const { data: after } = await admin
           .from("wallet_balances")
-          .select("id,available,staked")
-          .eq("user_id", s.user_id)
-          .eq("coin", s.coin)
-          .maybeSingle();
-
-        // Only release principal that was actually locked.
-        const lockedNow = Number(wallet?.staked ?? 0);
-        const principalBack = Math.min(amount, lockedNow);
-
-        if (wallet) {
-          await admin
-            .from("wallet_balances")
-            .update({
-              available: Number(wallet.available) + principalBack + reward,
-              staked: Math.max(0, lockedNow - principalBack),
-              updated_at: nowIso,
-            })
-            .eq("id", wallet.id);
-        } else {
-          await admin.from("wallet_balances").insert({
-            user_id: s.user_id,
-            coin: s.coin,
-            available: reward,
-            staked: 0,
-          });
-        }
+          .select("available")
+          .eq("id", walletId)
+          .single();
+        await admin
+          .from("wallet_balances")
+          .update({ available: Number(after?.available ?? 0) + reward, updated_at: nowIso })
+          .eq("id", walletId);
       }
 
-      // 3. Best-effort audit trail (never blocks settlement).
+      // Best-effort notification (never blocks settlement).
       await admin.from("notifications").insert({
         user_id: s.user_id,
         title: "Stake completed",
-        body: `Your ${s.is_usd ? "USD" : s.coin} stake of ${amount} has matured. Principal and ${reward.toFixed(
+        body: `Your ${asset} stake of ${amount} has matured. Principal and ${reward.toFixed(
           8
-        )} ${s.is_usd ? "USD" : s.coin} reward are back in your wallet.`,
+        )} ${asset} reward are back in your wallet.`,
       });
 
       result.settled++;
+
     } catch (e: any) {
       result.skipped++;
       result.errors.push(`${s.id}: ${e?.message ?? String(e)}`);
