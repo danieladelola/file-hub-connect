@@ -57,6 +57,21 @@ export async function settleExpiredStakes(
       const amount = Number(s.amount);
       const reward = fullTermReward(s);
 
+      // 1. Close the stake first (guarded), so a later failure can never
+      //    credit a balance twice on a retry.
+      const { data: closed, error: upErr } = await admin
+        .from("user_stakes")
+        .update({ status: "completed", reward_earned: reward })
+        .eq("id", s.id)
+        .eq("status", "active")
+        .select("id");
+      if (upErr) throw upErr;
+      if (!closed || closed.length === 0) {
+        result.skipped++;
+        continue;
+      }
+
+      // 2. Return principal + reward.
       if (s.is_usd) {
         const { data: fiat } = await admin
           .from("fiat_balances")
@@ -87,7 +102,7 @@ export async function settleExpiredStakes(
             .from("wallet_balances")
             .update({
               available: Number(wallet.available) + principalBack + reward,
-              staked: lockedNow - principalBack,
+              staked: Math.max(0, lockedNow - principalBack),
               updated_at: nowIso,
             })
             .eq("id", wallet.id);
@@ -101,25 +116,7 @@ export async function settleExpiredStakes(
         }
       }
 
-      const { error: upErr } = await admin
-        .from("user_stakes")
-        .update({ status: "completed", reward_earned: reward })
-        .eq("id", s.id)
-        .eq("status", "active");
-      if (upErr) throw upErr;
-
-      await admin.from("transaction_history").insert({
-        user_id: s.user_id,
-        type: "stake_reward",
-        coin: s.is_usd ? "USD" : s.coin,
-        amount: reward,
-        ref_id: s.id,
-        status: "completed",
-        description: `Stake matured — principal released and ${reward.toFixed(8)} ${
-          s.is_usd ? "USD" : s.coin
-        } reward credited`,
-      });
-
+      // 3. Best-effort audit trail (never blocks settlement).
       await admin.from("notifications").insert({
         user_id: s.user_id,
         title: "Stake completed",
@@ -134,6 +131,7 @@ export async function settleExpiredStakes(
       result.errors.push(`${s.id}: ${e?.message ?? String(e)}`);
     }
   }
+
 
   return result;
 }
