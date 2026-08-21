@@ -12,6 +12,7 @@ import { ExchangeDialog } from "@/components/ExchangeDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAutoSettleStakes } from "@/hooks/useAutoSettleStakes";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { data: balances = [] } = useBalances();
   const { data: usdBalance = 0 } = useFiatBalance();
+  useAutoSettleStakes();
   const { data: coins = [] } = useCoinList();
   const [dialog, setDialog] = useState<{ open: boolean; mode: "buy" | "sell" | "swap"; coin: string }>({
     open: false, mode: "buy", coin: "BTC",

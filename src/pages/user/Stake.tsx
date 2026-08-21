@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBalances } from "@/hooks/useBalances";
+import { useAutoSettleStakes } from "@/hooks/useAutoSettleStakes";
 import { useFiatBalance } from "@/hooks/useFiatBalance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ export default function Stake() {
   const qc = useQueryClient();
   const { data: balances = [] } = useBalances();
   const { data: usdBalance = 0 } = useFiatBalance();
+  useAutoSettleStakes();
 
   const { data: plans = [] } = useQuery({
     queryKey: ["staking-plans"],
