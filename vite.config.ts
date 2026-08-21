@@ -57,6 +57,7 @@ function apiRoutesPlugin(env: Record<string, string>): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
+    server: { host: "::", port: 8080 },
     plugins: [react(), tailwindcss(), apiRoutesPlugin(env)],
     resolve: {
       alias: {
