@@ -52,7 +52,15 @@ export async function settleExpiredStakes(
     return result;
   }
 
-  for (const s of stakes ?? []) {
+  // Orphaned seed rows (user_id with no profile) can't be settled: the DB
+  // triggers on user_stakes write an audit row that FK-references profiles.
+  const userIds = [...new Set((stakes ?? []).map((s: any) => s.user_id))];
+  const { data: profiles } = await admin.from("profiles").select("id").in("id", userIds);
+  const realUsers = new Set((profiles ?? []).map((p: any) => p.id));
+
+  for (const s of (stakes ?? []).filter((s: any) => realUsers.has(s.user_id))) {
+    try {
+
     try {
       const amount = Number(s.amount);
       const reward = fullTermReward(s);
