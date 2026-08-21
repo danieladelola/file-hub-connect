@@ -61,7 +61,6 @@ export async function settleExpiredStakes(
   for (const s of (stakes ?? []).filter((s: any) => realUsers.has(s.user_id))) {
     try {
 
-    try {
       const amount = Number(s.amount);
       const reward = fullTermReward(s);
 
