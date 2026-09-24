@@ -7,7 +7,7 @@ import {
   CheckCircle2, Globe, Sparkles
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import securityBadges from "@/assets/security-badges.png.asset.json";
+import securityBadgesImg from "@/assets/security-badges.png";
 
 const features = [
   { icon: Wallet, title: "Multi-Coin Wallet", desc: "Track BTC, ETH, USDT, SOL and more — all in one secure wallet." },
@@ -260,7 +260,7 @@ export default function Home() {
           </div>
         </div>
         <img
-          src={securityBadges.url}
+          src={securityBadgesImg}
           alt="Secure SSL encryption, privacy protected, secure payments"
           className="mx-auto mt-16 w-full max-w-md rounded-xl opacity-95"
           loading="lazy"
