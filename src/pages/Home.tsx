@@ -7,6 +7,7 @@ import {
   CheckCircle2, Globe, Sparkles
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import securityBadges from "@/assets/security-badges.png.asset.json";
 
 const features = [
   { icon: Wallet, title: "Multi-Coin Wallet", desc: "Track BTC, ETH, USDT, SOL and more — all in one secure wallet." },
@@ -57,10 +58,26 @@ export default function Home() {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-hero opacity-90" />
+        <div className="pointer-events-none absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 -left-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute top-20 -right-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+            maskImage: "radial-gradient(ellipse at center, black 30%, transparent 75%)",
+          }}
+        />
         <div className="container relative py-24 md:py-32">
           <div className="max-w-3xl mx-auto text-center animate-fade-in">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary mb-6">
-              <Sparkles className="h-3 w-3" /> Trusted by 50,000+ crypto investors
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary mb-6 backdrop-blur">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+              Trusted by 50,000+ crypto investors
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
               Buy, Sell, Stake, and{" "}
@@ -71,10 +88,10 @@ export default function Home() {
               A secure crypto platform for trading, staking, wallet tracking, and market insights — all in one premium dashboard.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-              <Button size="lg" asChild className="bg-gradient-primary text-primary-foreground shadow-elegant hover:opacity-95 h-12 px-8">
-                <Link to="/signup">Get Started <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <Button size="lg" asChild className="group bg-gradient-primary text-primary-foreground shadow-elegant hover:opacity-95 h-12 px-8">
+                <Link to="/signup">Get Started <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
               </Button>
-              <Button size="lg" variant="outline" asChild className="h-12 px-8">
+              <Button size="lg" variant="outline" asChild className="h-12 px-8 backdrop-blur">
                 <a href="#markets">View Markets</a>
               </Button>
             </div>
@@ -84,8 +101,42 @@ export default function Home() {
               <div className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> Instant signup</div>
             </div>
           </div>
+
+          {/* Stats */}
+          <div className="mt-16 mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden rounded-2xl border border-border/60 bg-border/40 backdrop-blur">
+            {[
+              { v: "50K+", l: "Active investors" },
+              { v: "$120M+", l: "Assets secured" },
+              { v: "9%", l: "Max staking APY" },
+              { v: "24/7", l: "Support & monitoring" },
+            ].map((s) => (
+              <div key={s.l} className="bg-card/70 p-5 text-center">
+                <div className="text-2xl md:text-3xl font-bold text-gradient-primary">{s.v}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{s.l}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
+
+      {/* Live ticker */}
+      {markets && markets.length > 0 && (
+        <div className="relative overflow-hidden border-y border-border/40 bg-card/40 py-3">
+          <div className="flex w-max animate-[ticker_40s_linear_infinite] gap-10 hover:[animation-play-state:paused]">
+            {[...markets, ...markets].map((c, i) => (
+              <div key={`${c.id}-${i}`} className="flex items-center gap-2 text-sm whitespace-nowrap">
+                <img src={c.image} alt="" className="h-5 w-5 rounded-full" />
+                <span className="font-medium uppercase">{c.symbol}</span>
+                <span className="tabular-nums text-muted-foreground">${c.current_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                <span className={`tabular-nums text-xs ${c.price_change_percentage_24h >= 0 ? "text-success" : "text-destructive"}`}>
+                  {c.price_change_percentage_24h >= 0 ? "▲" : "▼"} {Math.abs(c.price_change_percentage_24h ?? 0).toFixed(2)}%
+                </span>
+              </div>
+            ))}
+          </div>
+          <style>{`@keyframes ticker { from { transform: translateX(0) } to { transform: translateX(-50%) } }`}</style>
+        </div>
+      )}
 
       {/* Features */}
       <section id="features" className="container py-24">
@@ -95,7 +146,7 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {features.map((f) => (
-            <div key={f.title} className="glass rounded-2xl p-6 hover:border-primary/40 transition group">
+            <div key={f.title} className="glass rounded-2xl p-6 hover:border-primary/40 hover:-translate-y-1 hover:shadow-elegant transition-all duration-300 group">
               <div className="h-11 w-11 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow mb-4 group-hover:scale-110 transition">
                 <f.icon className="h-5 w-5 text-primary-foreground" />
               </div>
@@ -208,6 +259,12 @@ export default function Home() {
             </div>
           </div>
         </div>
+        <img
+          src={securityBadges.url}
+          alt="Secure SSL encryption, privacy protected, secure payments"
+          className="mx-auto mt-16 w-full max-w-md rounded-xl opacity-95"
+          loading="lazy"
+        />
       </section>
 
       {/* CTA */}
