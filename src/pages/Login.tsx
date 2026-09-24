@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { MathCaptcha, type MathCaptchaHandle } from "@/components/MathCaptcha";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ export default function Login({ admin = false }: { admin?: boolean }) {
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
+  const captchaRef = useRef<MathCaptchaHandle>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -31,6 +33,10 @@ export default function Login({ admin = false }: { admin?: boolean }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!captchaRef.current?.verify()) {
+      captchaRef.current?.reset();
+      return toast.error("Incorrect answer to the security check. Try again.");
+    }
     setBusy(true);
 
     // Resolve username -> email if needed
@@ -85,69 +91,83 @@ export default function Login({ admin = false }: { admin?: boolean }) {
         <p className="relative text-xs text-foreground/50">© {new Date().getFullYear()} Haratrading. All rights reserved.</p>
       </div>
 
-      <div className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md space-y-8">
+      <div className="relative flex items-center justify-center p-6 sm:p-10 overflow-hidden">
+        <div className="pointer-events-none absolute -top-32 -right-32 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative w-full max-w-md space-y-8">
           <div className="lg:hidden flex justify-center">
             <Link to="/" className="inline-flex items-center gap-2">
               <Logo className="h-9 w-auto" />
             </Link>
           </div>
 
-          <div className="space-y-2 text-center lg:text-left">
-            <h1 className="text-3xl font-bold tracking-tight">{admin ? "Admin Sign In" : "Welcome back"}</h1>
-            <p className="text-muted-foreground">
-              {admin ? "Restricted access — administrators only." : "Sign in with your email or username."}
-            </p>
-          </div>
-
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="identifier">Email or username</Label>
-              <Input
-                id="identifier"
-                required
-                autoComplete="username"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="you@example.com or yourname"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link to="/forgot-password" className="text-xs text-primary hover:underline">Forgot?</Link>
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={show ? "text" : "password"}
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShow((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
-                  aria-label={show ? "Hide password" : "Show password"}
-                >
-                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-            <Button type="submit" disabled={busy} className="w-full bg-gradient-primary shadow-elegant">
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign in
-            </Button>
-            {!admin && (
-              <p className="text-center text-sm text-muted-foreground">
-                New here?{" "}
-                <Link to="/signup" className="text-primary hover:underline">Create an account</Link>
+          <div className="rounded-2xl border border-border/60 bg-card/70 p-7 sm:p-8 shadow-elegant backdrop-blur-xl space-y-7">
+            <div className="space-y-2 text-center lg:text-left">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <Sparkles className="h-3 w-3" /> {admin ? "Admin portal" : "Secure sign in"}
+              </span>
+              <h1 className="text-3xl font-bold tracking-tight">{admin ? "Admin Sign In" : "Welcome back"}</h1>
+              <p className="text-muted-foreground text-sm">
+                {admin ? "Restricted access — administrators only." : "Sign in with your email or username."}
               </p>
-            )}
-          </form>
+            </div>
+
+            <form onSubmit={onSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="identifier">Email or username</Label>
+                <Input
+                  id="identifier"
+                  required
+                  autoComplete="username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="you@example.com or yourname"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Link to="/forgot-password" className="text-xs text-primary hover:underline">Forgot?</Link>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={show ? "text" : "password"}
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShow((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                    aria-label={show ? "Hide password" : "Show password"}
+                  >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <MathCaptcha ref={captchaRef} />
+
+              <Button type="submit" disabled={busy} className="h-11 w-full bg-gradient-primary shadow-elegant text-base">
+                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Sign in
+              </Button>
+              {!admin && (
+                <p className="text-center text-sm text-muted-foreground">
+                  New here?{" "}
+                  <Link to="/signup" className="text-primary font-medium hover:underline">Create an account</Link>
+                </p>
+              )}
+            </form>
+          </div>
+          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="h-3 w-3" /> Protected with end-to-end encryption
+          </p>
         </div>
       </div>
     </div>
