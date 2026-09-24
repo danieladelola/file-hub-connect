@@ -18,7 +18,7 @@ export function StatCard({
   className?: string;
 }) {
   return (
-    <Card className={cn("bg-gradient-card border-border/60 shadow-card overflow-hidden relative", className)}>
+    <Card className={cn("bg-gradient-card border-border/60 shadow-card overflow-hidden relative transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40", className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div>

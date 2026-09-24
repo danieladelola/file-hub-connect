@@ -113,12 +113,17 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Welcome back</h1>
+      <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-card p-5 md:p-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/20 blur-3xl" />
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs text-primary mb-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+            {format(new Date(), "EEEE, MMM d")}
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold">Welcome back 👋</h1>
           <p className="text-muted-foreground">Here's what's happening with your portfolio today.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="relative flex flex-wrap gap-2">
           <Button onClick={() => setDialog({ open: true, mode: "buy", coin: "BTC" })} className="bg-gradient-primary">
             <ArrowDownToLine className="h-4 w-4 mr-2" />Buy
           </Button>
