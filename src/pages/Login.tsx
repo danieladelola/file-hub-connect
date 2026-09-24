@@ -1,6 +1,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { MathCaptcha, type MathCaptchaHandle } from "@/components/MathCaptcha";
+import securityBadges from "@/assets/security-badges.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -168,6 +169,12 @@ export default function Login({ admin = false }: { admin?: boolean }) {
           <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <Lock className="h-3 w-3" /> Protected with end-to-end encryption
           </p>
+          <img
+            src={securityBadges.url}
+            alt="Secure SSL encryption, privacy protected, secure payments"
+            className="mx-auto w-full max-w-[260px] rounded-lg"
+            loading="lazy"
+          />
         </div>
       </div>
     </div>
