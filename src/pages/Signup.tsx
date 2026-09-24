@@ -1,12 +1,13 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { MathCaptcha, type MathCaptchaHandle } from "@/components/MathCaptcha";
 import { supabase } from "@/integrations/supabase/client";
 import { buildAuthConfirmUrl } from "@/lib/auth-email";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Rocket, Coins, BarChart3, Eye, EyeOff } from "lucide-react";
+import { Loader2, Sparkles, Rocket, Coins, BarChart3, Eye, EyeOff, Lock } from "lucide-react";
 import { z } from "zod";
 import authHero from "@/assets/auth-hero.jpg";
 import { Logo } from "@/components/Logo";
@@ -39,11 +40,16 @@ export default function Signup() {
   });
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
+  const captchaRef = useRef<MathCaptchaHandle>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = schema.safeParse(form);
     if (!parsed.success) return toast.error(parsed.error.errors[0].message);
+    if (!captchaRef.current?.verify()) {
+      captchaRef.current?.reset();
+      return toast.error("Incorrect answer to the security check. Try again.");
+    }
     setBusy(true);
     const fullName = `${parsed.data.first_name} ${parsed.data.last_name}`.trim();
     const { data: signUpData, error } = await supabase.auth.signUp({
@@ -113,17 +119,23 @@ export default function Signup() {
         <p className="relative text-xs text-foreground/50">© {new Date().getFullYear()} Haratrading. All rights reserved.</p>
       </div>
 
-      <div className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md space-y-6">
+      <div className="relative flex items-center justify-center p-6 sm:p-10 overflow-hidden">
+        <div className="pointer-events-none absolute -top-32 -right-32 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative w-full max-w-md space-y-6">
           <div className="lg:hidden flex justify-center">
             <Link to="/" className="inline-flex items-center gap-2">
               <Logo className="h-9 w-auto" />
             </Link>
           </div>
 
+          <div className="rounded-2xl border border-border/60 bg-card/70 p-7 sm:p-8 shadow-elegant backdrop-blur-xl space-y-6">
           <div className="space-y-2 text-center lg:text-left">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <Sparkles className="h-3 w-3" /> Free account
+            </span>
             <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
-            <p className="text-muted-foreground">Start trading and staking in minutes.</p>
+            <p className="text-muted-foreground text-sm">Start trading and staking in minutes.</p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">
@@ -178,15 +190,20 @@ export default function Signup() {
               </div>
               <p className="text-xs text-muted-foreground">Minimum 8 characters.</p>
             </div>
-            <Button type="submit" disabled={busy} className="w-full bg-gradient-primary shadow-elegant">
+            <MathCaptcha ref={captchaRef} />
+            <Button type="submit" disabled={busy} className="h-11 w-full bg-gradient-primary shadow-elegant text-base">
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create account
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Already a member?{" "}
-              <Link to="/login" className="text-primary hover:underline">Sign in</Link>
+              <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
             </p>
           </form>
+          </div>
+          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="h-3 w-3" /> Protected with end-to-end encryption
+          </p>
         </div>
       </div>
     </div>
