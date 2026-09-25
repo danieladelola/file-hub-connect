@@ -64,9 +64,22 @@ export default function AdminNotifications() {
       _body: body || (undefined as any),
       _target_user: segment === "single" ? targetUser : (undefined as any),
     });
-    setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { setBusy(false); return toast.error(error.message); }
     toast.success(`Notification sent to ${data ?? 0} user${data === 1 ? "" : "s"}`);
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      const r = await fetch("/api/send-notification-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.session?.access_token ?? ""}` },
+        body: JSON.stringify({ segment, title, message: body, target_user: targetUser }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) toast.error(`Email failed: ${j.error ?? r.status}`);
+      else toast.success(`Email sent to ${j.sent}/${j.total} user(s)`);
+    } catch (e: any) {
+      toast.error(`Email failed: ${e.message}`);
+    }
+    setBusy(false);
     setTitle("");
     setBody("");
     qc.invalidateQueries({ queryKey: ["notif-history"] });
