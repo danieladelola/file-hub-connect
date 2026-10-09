@@ -73,7 +73,7 @@ function RouteFallback() {
   );
 }
 
-const PAGE_DELAY_MS = 30_000;
+const PAGE_DELAY_MS = 60_000;
 
 function PageDelay() {
   const { pathname } = useLocation();
