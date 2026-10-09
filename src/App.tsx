@@ -1,6 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -73,6 +73,24 @@ function RouteFallback() {
   );
 }
 
+const PAGE_DELAY_MS = 30_000;
+
+function PageDelay() {
+  const { pathname } = useLocation();
+  const [waiting, setWaiting] = useState(true);
+  useEffect(() => {
+    setWaiting(true);
+    const t = setTimeout(() => setWaiting(false), PAGE_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [pathname]);
+  if (!waiting) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
+
 // ❌ REMOVED: createStableRouterWindow — this was causing the Illegal invocation crash
 
 const App = () => (
@@ -82,6 +100,7 @@ const App = () => (
       <Sonner />
       {/* ✅ Plain BrowserRouter — no custom window prop needed */}
       <BrowserRouter>
+        <PageDelay />
         <AuthProvider>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
