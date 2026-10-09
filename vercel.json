@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "installCommand": "npm install",
+  "installCommand": "bun install",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
