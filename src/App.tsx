@@ -73,23 +73,6 @@ function RouteFallback() {
   );
 }
 
-const PAGE_DELAY_MS = 60_000;
-
-function PageDelay() {
-  const { pathname } = useLocation();
-  const [waiting, setWaiting] = useState(true);
-  useEffect(() => {
-    setWaiting(true);
-    const t = setTimeout(() => setWaiting(false), PAGE_DELAY_MS);
-    return () => clearTimeout(t);
-  }, [pathname]);
-  if (!waiting) return null;
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-    </div>
-  );
-}
 
 // ❌ REMOVED: createStableRouterWindow — this was causing the Illegal invocation crash
 
