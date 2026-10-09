@@ -83,7 +83,6 @@ const App = () => (
       <Sonner />
       {/* ✅ Plain BrowserRouter — no custom window prop needed */}
       <BrowserRouter>
-        <PageDelay />
         <AuthProvider>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
