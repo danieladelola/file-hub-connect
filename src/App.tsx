@@ -1,38 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { RequireAuth } from "@/components/RequireAuth";
-
-// Page delay: every page/navigation waits this long before appearing.
-const PAGE_DELAY_MS = 60_000;
-
-function PageDelay() {
-  const location = useLocation();
-  const [waiting, setWaiting] = useState(true);
-
-  useEffect(() => {
-    setWaiting(true);
-    const t = window.setTimeout(() => setWaiting(false), PAGE_DELAY_MS);
-    // Scroll to top when the next page is revealed
-    return () => window.clearTimeout(t);
-  }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!waiting) window.scrollTo(0, 0);
-  }, [waiting]);
-
-  if (!waiting) return null;
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
-      <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-    </div>
-  );
-}
 
 // Public pages
 const Home = lazy(() => import("./pages/Home"));
@@ -110,7 +83,6 @@ const App = () => (
       <Sonner />
       {/* ✅ Plain BrowserRouter — no custom window prop needed */}
       <BrowserRouter>
-        <PageDelay />
         <AuthProvider>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
