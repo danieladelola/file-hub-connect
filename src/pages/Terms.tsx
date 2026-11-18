@@ -108,13 +108,13 @@ const sections: Section[] = [
   },
   {
     h: "18. Governing Law",
-    paragraphs: ["These Terms shall be governed by and interpreted in accordance with the laws of the Federal Republic of Nigeria, without regard to conflict of law principles."],
+    paragraphs: ["These Terms shall be governed by and interpreted in accordance with applicable laws, without regard to conflict of law principles."],
   },
   {
     h: "19. Dispute Resolution",
     paragraphs: [
       "Any dispute arising from these Terms shall first be resolved through good-faith negotiations.",
-      "Where resolution cannot be reached, disputes shall be submitted to the competent courts of Nigeria.",
+      "Where resolution cannot be reached, disputes shall be submitted to a court with appropriate jurisdiction.",
       "Haratrading may also seek injunctive relief where necessary to protect its rights and intellectual property.",
     ],
   },

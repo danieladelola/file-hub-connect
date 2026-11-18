@@ -74,7 +74,7 @@ const sections: Section[] = [
   },
   {
     h: "13. Regulatory Compliance",
-    groups: [{ intro: "Haratrading aims to comply with applicable privacy and data protection laws, including but not limited to:", items: ["Nigeria Data Protection Act (NDPA)", "General Data Protection Regulation (GDPR), where applicable", "Other relevant international privacy regulations"] }],
+    groups: [{ intro: "Haratrading aims to comply with applicable privacy and data protection laws, including but not limited to:", items: ["General Data Protection Regulation (GDPR), where applicable", "Other relevant international privacy regulations"] }],
   },
   {
     h: "14. Changes to This Privacy Policy",
